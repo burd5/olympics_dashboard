@@ -1,39 +1,14 @@
 import streamlit as st
+st.set_page_config(layout="wide", page_icon="🥇")
 import pandas as pd
 from pandas import DataFrame
-import pandasql as ps
+import inflect
 import plotly.express as px
-
-@st.cache_data
-def load_data(filepath: str)-> DataFrame:
-    try:
-        data = pd.read_csv(filepath)
-        if data.empty:
-            st.error("No data found in the CSV file.", icon="🚨")
-        return data
-    except FileNotFoundError:
-        st.error(
-            f"File not found: {filepath}. Please check the file path.",
-            icon="🚨",
-        )
-    except pd.errors.EmptyDataError:
-        st.error("No data found in the CSV file.", icon="🚨")
-    except Exception as e:
-        st.error(f"An error occurred while loading the data: {e}", icon="🚨")
-    return pd.DataFrame()  # Return an empty DataFrame if any error occurs
-
-def filter_data(df, selected_year, selected_season, selected_medal):
-    filtered_df = df.copy()
-    if selected_year:
-        filtered_df = filtered_df[filtered_df['Year'] == selected_year]
-    if selected_season:
-        filtered_df = filtered_df[filtered_df['Season'] == selected_season]
-    if selected_medal:
-        filtered_df = filtered_df[filtered_df['Medal'] == selected_medal]
-    return filtered_df
+from utils.country_medal_counts import total_medal_counts, medal_rank, best_event, medals_over_time
+from utils.data import load_data, filter_data
+p = inflect.engine()
 
 def main():
-    st.set_page_config(layout="wide", page_icon="🥇")
     st.title("🥇 History of the Olympics", anchor=False)
 
     tab1, tab2, tab3 = st.tabs(
@@ -114,7 +89,24 @@ def main():
 
         st.subheader('Country Medal Counts')
 
-        st.write('Country name - line graph year to year, show breakdown by medal over time (slider for time, dropdown for country. Individual stats for number of medals, medal rank, best year for medals)')
+        col3, line_graph = st.columns([4, 6])
+
+        with col3:
+            available_countries = df['Team'].unique()
+            selected_team = st.selectbox('Country:', sorted(available_countries.tolist()), index=1095)
+            start_year, end_year = st.slider('Time Period:', min_value=min(df['Year']), max_value=max(df['Year']), value=(1896, 2016))
+            total_medals = total_medal_counts(selected_team, start_year, end_year)
+            medal_rank_num = medal_rank(selected_team, start_year, end_year)
+            best_event_str = best_event(selected_team, start_year, end_year)
+            col1, col2, col3, col4, col5 = st.columns([1,1,1,1,1])
+            col1.metric("Total Medals", total_medals)
+            col2.metric("Medal Rank", p.ordinal(int(medal_rank_num)))
+            sport1, sport2, sport3 = [(index,row) for index, row in best_event_str.iterrows()]
+            for col, sport, medal in zip( (col3, col4, col5), (sport1, sport2, sport3), ('🥇', '🥈', '🥉')):
+                col.metric(f"{medal} {sport[1]['Sport']}", sport[1]['Total Medals'])
+
+        with line_graph:
+            pass
 
     
     with tab2:
